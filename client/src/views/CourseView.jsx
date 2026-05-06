@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import ProgressBar from "../components/ProgressBar";
+import DeleteModal from "../components/DeleteModal";
 
 const EVENT_STYLE = {
   assignment: { pill: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
@@ -65,8 +66,21 @@ const listItem = {
   show:   { opacity: 1, x: 0, transition: { duration: 0.28, ease: [0.4, 0, 0.2, 1] } },
 };
 
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
+
 export default function CourseView({ course, semester, onBack }) {
-  const [tab, setTab] = useState("events");
+  const [tab,        setTab]        = useState("events");
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const now = new Date();
 
   const assignments = course.events.filter((e) => e.type === "assignment");
@@ -82,7 +96,12 @@ export default function CourseView({ course, semester, onBack }) {
 
   const style = (type) => EVENT_STYLE[type] ?? EVENT_STYLE.other;
 
+  const deleteDescription =
+    `This will permanently remove ${course.events.length} event${course.events.length !== 1 ? "s" : ""} ` +
+    `and ${course.resources.length} resource${course.resources.length !== 1 ? "s" : ""}.`;
+
   return (
+    <>
     <div>
       {/* ── Breadcrumb ────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">
@@ -102,24 +121,40 @@ export default function CourseView({ course, semester, onBack }) {
       </div>
 
       {/* ── Course header ─────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-4 mb-6">
-        <div
-          className={`w-12 h-12 rounded-[14px] bg-gradient-to-br ${course.gradient} shadow-md shrink-0 mt-0.5`}
-        />
-        <div>
-          <p className="text-[11px] font-semibold text-white/60 uppercase mb-0.5" style={{ letterSpacing: "0.06em" }}>
-            {course.code}
-          </p>
-          <h1
-            className="text-[26px] font-semibold text-white leading-tight"
-            style={{ letterSpacing: "-0.03em", textShadow: "0 1px 12px rgba(0,0,0,0.14)" }}
-          >
-            {course.title}
-          </h1>
-          {course.description && (
-            <p className="text-[13px] text-white/65 mt-1">{course.description}</p>
-          )}
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="flex items-start gap-4">
+          <div
+            className={`w-12 h-12 rounded-[14px] bg-gradient-to-br ${course.gradient} shadow-md shrink-0 mt-0.5`}
+          />
+          <div>
+            <p className="text-[11px] font-semibold text-white/60 uppercase mb-0.5" style={{ letterSpacing: "0.06em" }}>
+              {course.code}
+            </p>
+            <h1
+              className="text-[26px] font-semibold text-white leading-tight"
+              style={{ letterSpacing: "-0.03em", textShadow: "0 1px 12px rgba(0,0,0,0.14)" }}
+            >
+              {course.title}
+            </h1>
+            {course.description && (
+              <p className="text-[13px] text-white/65 mt-1">{course.description}</p>
+            )}
+          </div>
         </div>
+
+        {/* Delete course button */}
+        <motion.button
+          onClick={() => setDeleteOpen(true)}
+          whileHover={{ scale: 1.06, backgroundColor: "rgba(255,255,255,0.22)" }}
+          whileTap={{ scale: 0.94 }}
+          className="flex items-center gap-2 px-3 py-2 rounded-[10px] text-[13px]
+                     font-medium text-white/70 hover:text-rose-300
+                     bg-white/[0.12] backdrop-blur-sm transition-colors duration-150
+                     border border-white/20 cursor-pointer shrink-0 mt-1"
+        >
+          <TrashIcon />
+          Delete Course
+        </motion.button>
       </div>
 
       {/* ── Stats + progress ──────────────────────────────────────────────── */}
@@ -272,5 +307,15 @@ export default function CourseView({ course, semester, onBack }) {
         )}
       </AnimatePresence>
     </div>
+
+    <DeleteModal
+      isOpen={deleteOpen}
+      onClose={() => setDeleteOpen(false)}
+      onConfirm={onBack}
+      entityType="Course"
+      entityName={course.title}
+      description={deleteDescription}
+    />
+    </>
   );
 }

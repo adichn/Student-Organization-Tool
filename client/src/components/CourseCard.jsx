@@ -12,7 +12,19 @@ function relativeDate(date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export default function CourseCard({ course, onClick }) {
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
+
+export default function CourseCard({ course, onClick, onDelete }) {
   const assignments  = course.events.filter((e) => e.type === "assignment");
   const done         = assignments.filter((e) => e.completed).length;
   const now          = new Date();
@@ -25,13 +37,29 @@ export default function CourseCard({ course, onClick }) {
       whileHover={{ y: -3, transition: { duration: 0.18, ease: "easeOut" } }}
       whileTap={{ scale: 0.982 }}
       onClick={() => onClick(course)}
-      className="cursor-pointer h-full"
+      className="cursor-pointer h-full group"
     >
-      <GlassCard className="p-5 h-full flex flex-col">
+      <GlassCard className="p-5 h-full flex flex-col relative">
         {/* Colour accent */}
         <div
           className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${course.gradient} mb-4 shadow-sm shrink-0`}
         />
+
+        {/* Delete button — reveals on card hover */}
+        {onDelete && (
+          <motion.button
+            onClick={(e) => { e.stopPropagation(); onDelete(course); }}
+            whileHover={{ scale: 1.12 }}
+            whileTap={{ scale: 0.9 }}
+            className="absolute top-3.5 right-3.5 w-7 h-7 flex items-center justify-center
+                       rounded-[7px] text-gray-400 hover:text-rose-500
+                       hover:bg-rose-50 transition-all duration-150 cursor-pointer
+                       opacity-0 group-hover:opacity-100"
+            aria-label={`Delete ${course.title}`}
+          >
+            <TrashIcon />
+          </motion.button>
+        )}
 
         {/* Code + title */}
         <p
