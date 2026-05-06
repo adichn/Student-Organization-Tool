@@ -2,7 +2,15 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import GlassCard from "../components/GlassCard";
 import ProgressBar from "../components/ProgressBar";
+import ProgressRing from "../components/ProgressRing";
 import DeleteModal from "../components/DeleteModal";
+import {
+  useAssignments,
+  useUpdateAssignment,
+  useCreateAssignment,
+} from "../hooks/useAssignments";
+
+// ── Static config ─────────────────────────────────────────────────────────────
 
 const EVENT_STYLE = {
   assignment: { pill: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
@@ -10,6 +18,12 @@ const EVENT_STYLE = {
   lecture:    { pill: "bg-sky-100    text-sky-700",     dot: "bg-sky-500" },
   reminder:   { pill: "bg-amber-100  text-amber-700",  dot: "bg-amber-500" },
   other:      { pill: "bg-gray-100   text-gray-600",   dot: "bg-gray-400" },
+};
+
+const STATUS_CONFIG = {
+  "todo":        { label: "To-Do",       ring: "bg-gray-100   text-gray-600",   dot: "bg-gray-400",    next: "in-progress" },
+  "in-progress": { label: "In Progress", ring: "bg-amber-50   text-amber-700",  dot: "bg-amber-400",   next: "completed"   },
+  "completed":   { label: "Completed",   ring: "bg-emerald-50 text-emerald-700",dot: "bg-emerald-500", next: "todo"        },
 };
 
 const RESOURCE_TYPE_ICON = {
@@ -35,6 +49,26 @@ const RESOURCE_TYPE_ICON = {
   ),
 };
 
+// ── Animation variants ────────────────────────────────────────────────────────
+
+const tabFade = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] } },
+  exit:    { opacity: 0,       transition: { duration: 0.12 } },
+};
+
+const listStagger = {
+  hidden: {},
+  show:   { transition: { staggerChildren: 0.045 } },
+};
+
+const listItem = {
+  hidden: { opacity: 0, x: -12 },
+  show:   { opacity: 1, x: 0, transition: { duration: 0.26, ease: [0.4, 0, 0.2, 1] } },
+};
+
+// ── Small helpers ─────────────────────────────────────────────────────────────
+
 function formatDate(date) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
@@ -50,22 +84,6 @@ function relativeDate(date) {
   return formatDate(date);
 }
 
-const tabFade = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] } },
-  exit:    { opacity: 0,       transition: { duration: 0.12 } },
-};
-
-const listStagger = {
-  hidden: {},
-  show:   { transition: { staggerChildren: 0.055 } },
-};
-
-const listItem = {
-  hidden: { opacity: 0, x: -12 },
-  show:   { opacity: 1, x: 0, transition: { duration: 0.28, ease: [0.4, 0, 0.2, 1] } },
-};
-
 function TrashIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -78,19 +96,294 @@ function TrashIcon() {
   );
 }
 
+// ── StatusBadge — click to cycle through statuses ────────────────────────────
+
+function StatusBadge({ status, onClick, isPending }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["todo"];
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      disabled={isPending}
+      className={[
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full",
+        "text-[11px] font-semibold transition-opacity duration-100",
+        "cursor-pointer hover:opacity-75 active:scale-95 disabled:cursor-wait",
+        cfg.ring,
+      ].join(" ")}
+      title="Click to change status"
+    >
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+      {cfg.label}
+    </button>
+  );
+}
+
+// ── Add-assignment inline form ────────────────────────────────────────────────
+
+function AddAssignmentForm({ courseId, onClose }) {
+  const [title, setTitle]   = useState("");
+  const [date,  setDate]    = useState("");
+  const { mutate, isPending, error } = useCreateAssignment(courseId);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!title.trim() || !date) return;
+    mutate(
+      { title: title.trim(), date },
+      { onSuccess: onClose }
+    );
+  }
+
+  return (
+    <motion.form
+      onSubmit={handleSubmit}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2 }}
+    >
+      <GlassCard variant="subtle" className="p-4 mb-3">
+        <p className="text-[12px] font-semibold text-gray-700 mb-3" style={{ letterSpacing: "-0.011em" }}>
+          New Assignment
+        </p>
+        <div className="space-y-2.5">
+          <input
+            type="text"
+            placeholder="Assignment title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            autoFocus
+            className="w-full px-3 py-2 rounded-[8px] text-[13px] outline-none
+                       bg-white/70 border border-gray-200/80 text-gray-900
+                       placeholder:text-gray-300
+                       focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100
+                       transition-all duration-150"
+          />
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            className="w-full px-3 py-2 rounded-[8px] text-[13px] outline-none
+                       bg-white/70 border border-gray-200/80 text-gray-700
+                       focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100
+                       transition-all duration-150"
+          />
+        </div>
+
+        {error && (
+          <p className="text-[11px] text-rose-500 mt-2">{error.message}</p>
+        )}
+
+        <div className="flex gap-2 mt-3">
+          <motion.button
+            type="submit"
+            disabled={isPending || !title.trim() || !date}
+            whileTap={{ scale: 0.97 }}
+            className="flex-1 py-2 rounded-[8px] text-[13px] font-semibold text-white
+                       bg-gradient-to-r from-indigo-500 to-violet-500
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       transition-opacity duration-150 cursor-pointer"
+          >
+            {isPending ? "Adding…" : "Add Assignment"}
+          </motion.button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-gray-500
+                       bg-gray-100/70 hover:bg-gray-200/70 transition-colors duration-100 cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      </GlassCard>
+    </motion.form>
+  );
+}
+
+// ── Assignment row ────────────────────────────────────────────────────────────
+
+function AssignmentRow({ assignment, courseId }) {
+  const { mutate, isPending } = useUpdateAssignment(courseId);
+  const cfg = STATUS_CONFIG[assignment.status] ?? STATUS_CONFIG["todo"];
+
+  function cycleStatus() {
+    mutate({ assignmentId: assignment._id, status: cfg.next });
+  }
+
+  return (
+    <motion.li
+      variants={listItem}
+      layout
+      className={[
+        "flex items-center gap-3 px-4 py-3.5",
+        assignment.status === "completed" ? "opacity-55" : "",
+      ].join(" ")}
+    >
+      {/* Status badge — click to advance */}
+      <StatusBadge
+        status={assignment.status}
+        onClick={cycleStatus}
+        isPending={isPending}
+      />
+
+      {/* Title + date */}
+      <div className="flex-1 min-w-0">
+        <p
+          className={[
+            "text-[13px] font-medium text-gray-900 leading-tight truncate",
+            assignment.status === "completed" ? "line-through text-gray-500" : "",
+          ].join(" ")}
+          style={{ letterSpacing: "-0.011em" }}
+        >
+          {assignment.title}
+        </p>
+        {assignment.description && (
+          <p className="text-[11px] text-gray-400 truncate mt-0.5">
+            {assignment.description}
+          </p>
+        )}
+      </div>
+
+      {/* Due date */}
+      <span className="text-[11px] text-gray-400 shrink-0 tabular-nums">
+        {relativeDate(assignment.date)}
+      </span>
+    </motion.li>
+  );
+}
+
+// ── Assignments tab ───────────────────────────────────────────────────────────
+
+const STATUS_ORDER = ["in-progress", "todo", "completed"];
+const STATUS_SECTION_LABEL = {
+  "in-progress": "In Progress",
+  "todo":        "To-Do",
+  "completed":   "Completed",
+};
+
+function AssignmentsTab({ course }) {
+  const seedData = course.events.filter((e) => e.type === "assignment");
+  const { data: assignments = [], isError } = useAssignments(course._id, seedData);
+  const [showForm, setShowForm] = useState(false);
+
+  const done  = assignments.filter((a) => a.status === "completed").length;
+  const total = assignments.length;
+
+  const grouped = STATUS_ORDER.reduce((acc, status) => {
+    acc[status] = assignments.filter((a) => a.status === status);
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      {/* Summary ring + add button */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-4">
+          <ProgressRing value={done} max={total} size={64} strokeWidth={5.5} />
+          <div>
+            <p className="text-[13px] font-medium text-white/90" style={{ letterSpacing: "-0.011em" }}>
+              {done} of {total} complete
+            </p>
+            <p className="text-[11px] text-white/55 mt-0.5">
+              {grouped["in-progress"].length > 0
+                ? `${grouped["in-progress"].length} in progress`
+                : grouped["todo"].length > 0
+                ? `${grouped["todo"].length} remaining`
+                : "All done!"}
+            </p>
+          </div>
+        </div>
+
+        <motion.button
+          onClick={() => setShowForm((v) => !v)}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-2 px-4 py-2 rounded-[10px] text-[13px]
+                     font-medium text-white/85 bg-white/[0.15] backdrop-blur-sm
+                     border border-white/20 hover:bg-white/[0.22] transition-colors
+                     duration-150 cursor-pointer"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Add
+        </motion.button>
+      </div>
+
+      {/* Inline add form */}
+      <AnimatePresence>
+        {showForm && (
+          <AddAssignmentForm
+            courseId={course._id}
+            onClose={() => setShowForm(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {isError && (
+        <p className="text-[12px] text-amber-200/80 mb-4">
+          Showing cached data — couldn't reach the server.
+        </p>
+      )}
+
+      {/* Status sections */}
+      {total === 0 && !showForm ? (
+        <GlassCard variant="subtle" className="flex flex-col items-center py-10 text-center">
+          <span className="text-2xl mb-2">✓</span>
+          <p className="text-[14px] font-medium text-gray-700">No assignments yet</p>
+          <p className="text-[12px] text-gray-400 mt-1">Click "Add" to create your first one.</p>
+        </GlassCard>
+      ) : (
+        <div className="space-y-4">
+          {STATUS_ORDER.map((status) => {
+            const items = grouped[status];
+            if (items.length === 0) return null;
+            return (
+              <section key={status}>
+                <p
+                  className="text-[10px] font-semibold text-white/60 uppercase mb-2"
+                  style={{ letterSpacing: "0.07em" }}
+                >
+                  {STATUS_SECTION_LABEL[status]} · {items.length}
+                </p>
+                <GlassCard
+                  variant={status === "in-progress" ? "elevated" : "default"}
+                  className="divide-y divide-gray-100/60"
+                >
+                  <motion.ul variants={listStagger} initial="hidden" animate="show">
+                    {items.map((a) => (
+                      <AssignmentRow key={a._id} assignment={a} courseId={course._id} />
+                    ))}
+                  </motion.ul>
+                </GlassCard>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+const TABS = ["assignments", "events", "resources"];
+
 export default function CourseView({ course, semester, onBack }) {
-  const [tab,        setTab]        = useState("events");
+  const [tab,        setTab]        = useState("assignments");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const now = new Date();
 
   const assignments = course.events.filter((e) => e.type === "assignment");
-  const done        = assignments.filter((e) => e.completed).length;
+  const done        = assignments.filter((e) => e.completed || e.status === "completed").length;
 
-  const upcoming    = course.events
+  const upcoming = course.events
     .filter((e) => !e.completed && new Date(e.date) > now)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  const past        = course.events
+  const past = course.events
     .filter((e) => e.completed || new Date(e.date) <= now)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -142,7 +435,6 @@ export default function CourseView({ course, semester, onBack }) {
           </div>
         </div>
 
-        {/* Delete course button */}
         <motion.button
           onClick={() => setDeleteOpen(true)}
           whileHover={{ scale: 1.06, backgroundColor: "rgba(255,255,255,0.22)" }}
@@ -157,7 +449,7 @@ export default function CourseView({ course, semester, onBack }) {
         </motion.button>
       </div>
 
-      {/* ── Stats + progress ──────────────────────────────────────────────── */}
+      {/* ── Stats strip ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
           { label: "Assignments",   value: `${done} / ${assignments.length}` },
@@ -181,13 +473,13 @@ export default function CourseView({ course, semester, onBack }) {
 
       {/* ── Tab control ───────────────────────────────────────────────────── */}
       <div className="flex items-center mb-5 p-1 rounded-[11px] bg-white/[0.18] backdrop-blur-sm w-fit">
-        {["events", "resources"].map((t) => (
+        {TABS.map((t) => (
           <motion.button
             key={t}
             onClick={() => setTab(t)}
             className={[
               "relative px-4 py-1.5 text-[13px] font-medium rounded-[8px] cursor-pointer",
-              "transition-colors duration-100 capitalize min-w-[88px] text-center",
+              "transition-colors duration-100 capitalize min-w-[96px] text-center",
               tab === t ? "text-gray-900" : "text-white/80 hover:text-white",
             ].join(" ")}
           >
@@ -206,9 +498,14 @@ export default function CourseView({ course, semester, onBack }) {
 
       {/* ── Tab content ───────────────────────────────────────────────────── */}
       <AnimatePresence mode="wait">
-        {tab === "events" ? (
+        {tab === "assignments" && (
+          <motion.div key="assignments" {...tabFade}>
+            <AssignmentsTab course={course} />
+          </motion.div>
+        )}
+
+        {tab === "events" && (
           <motion.div key="events" {...tabFade} className="space-y-6">
-            {/* Upcoming */}
             {upcoming.length > 0 && (
               <section>
                 <p className="text-[11px] font-semibold text-white/70 uppercase mb-3" style={{ letterSpacing: "0.06em" }}>
@@ -217,11 +514,7 @@ export default function CourseView({ course, semester, onBack }) {
                 <GlassCard variant="elevated" className="divide-y divide-gray-100/70">
                   <motion.ul variants={listStagger} initial="hidden" animate="show">
                     {upcoming.map((ev) => (
-                      <motion.li
-                        key={ev._id}
-                        variants={listItem}
-                        className="flex items-center gap-3 px-4 py-3"
-                      >
+                      <motion.li key={ev._id} variants={listItem} className="flex items-center gap-3 px-4 py-3">
                         <span className={`w-2 h-2 rounded-full shrink-0 ${style(ev.type).dot}`} />
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-medium text-gray-900 leading-tight" style={{ letterSpacing: "-0.011em" }}>
@@ -239,7 +532,6 @@ export default function CourseView({ course, semester, onBack }) {
               </section>
             )}
 
-            {/* Past */}
             {past.length > 0 && (
               <section>
                 <p className="text-[11px] font-semibold text-white/50 uppercase mb-3" style={{ letterSpacing: "0.06em" }}>
@@ -248,12 +540,7 @@ export default function CourseView({ course, semester, onBack }) {
                 <GlassCard className="divide-y divide-gray-100/50">
                   <motion.ul variants={listStagger} initial="hidden" animate="show">
                     {past.map((ev) => (
-                      <motion.li
-                        key={ev._id}
-                        variants={listItem}
-                        className="flex items-center gap-3 px-4 py-3 opacity-60"
-                      >
-                        {/* Checkmark for completed assignments */}
+                      <motion.li key={ev._id} variants={listItem} className="flex items-center gap-3 px-4 py-3 opacity-60">
                         {ev.completed ? (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500 shrink-0">
                             <polyline points="20 6 9 17 4 12" />
@@ -277,7 +564,9 @@ export default function CourseView({ course, semester, onBack }) {
               </section>
             )}
           </motion.div>
-        ) : (
+        )}
+
+        {tab === "resources" && (
           <motion.div key="resources" {...tabFade}>
             <div className="grid grid-cols-2 gap-3">
               {course.resources.map((res, i) => (

@@ -4,6 +4,11 @@ import auth from "../middleware/auth.js";
 import aiProvider from "../middleware/aiProvider.js";
 import { queryCourse } from "../controllers/courseController.js";
 import { uploadResource } from "../controllers/resourceController.js";
+import {
+  getAssignments,
+  createAssignment,
+  updateAssignment,
+} from "../controllers/assignmentController.js";
 
 const router = Router();
 
@@ -20,5 +25,10 @@ const upload = multer({
 // controller uses to scope every MongoDB query to the owning user.
 router.post("/:id/query",     auth, aiProvider, queryCourse);
 router.post("/:id/resources", auth, upload.single("file"), aiProvider, uploadResource);
+
+// Assignment tracking
+router.get   ("/:courseId/assignments",                    auth, getAssignments);
+router.post  ("/:courseId/assignments",                    auth, createAssignment);
+router.patch ("/:courseId/assignments/:assignmentId",      auth, updateAssignment);
 
 export default router;

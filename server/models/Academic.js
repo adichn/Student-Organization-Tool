@@ -28,6 +28,13 @@ const EventSchema = new Schema(
       enum: ["assignment", "exam", "lecture", "reminder", "other"],
       default: "other",
     },
+    // Three-state status for assignments; completed mirrors status === "completed"
+    // so existing queries that filter on `completed` keep working.
+    status: {
+      type: String,
+      enum: ["todo", "in-progress", "completed"],
+      default: "todo",
+    },
     completed: { type: Boolean, default: false },
   },
   { _id: true, timestamps: true }
