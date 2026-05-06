@@ -17,17 +17,19 @@ function getServerClient() {
  * to `req.aiClient`.
  *
  * Key resolution order:
- *   1. `x-api-key` request header  → caller supplies their own key
- *   2. ANTHROPIC_API_KEY env var    → server's internal fallback
+ *   1. `x-user-api-key` request header → caller supplies their own Anthropic key
+ *   2. ANTHROPIC_API_KEY env var        → server's shared fallback key
  *
  * The raw key string is NEVER attached to `req`, `res`, or `res.locals`.
  * Route handlers must only interact with `req.aiClient`, not the key itself.
  *
- * `req.aiKeySource` ("client" | "server") is safe to log or return — it
- * identifies the source without leaking the value.
+ * `req.aiKeySource` ("client" | "server") is safe to log or surface in
+ * responses — it identifies which key pool was used without leaking the value.
+ * Downstream middleware (aiRateLimit) uses this field to decide whether to
+ * enforce the free-tier quota.
  */
 export default function aiProvider(req, res, next) {
-  const clientKey = req.headers["x-api-key"]?.trim();
+  const clientKey = req.headers["x-user-api-key"]?.trim();
 
   if (clientKey) {
     // Per-request client — user is paying with their own key

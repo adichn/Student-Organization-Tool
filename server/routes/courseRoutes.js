@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import auth from "../middleware/auth.js";
 import aiProvider from "../middleware/aiProvider.js";
+import aiRateLimit from "../middleware/aiRateLimit.js";
 import { queryCourse } from "../controllers/courseController.js";
 import { uploadResource } from "../controllers/resourceController.js";
 import {
@@ -23,8 +24,11 @@ const upload = multer({
 
 // All course routes require a valid JWT — auth sets req.user which the
 // controller uses to scope every MongoDB query to the owning user.
-router.post("/:id/query",     auth, aiProvider, queryCourse);
-router.post("/:id/resources", auth, upload.single("file"), aiProvider, uploadResource);
+//
+// aiRateLimit sits after aiProvider so it can read req.aiKeySource and skip
+// users who supply their own key via x-user-api-key.
+router.post("/:id/query",     auth, aiProvider, aiRateLimit, queryCourse);
+router.post("/:id/resources", auth, upload.single("file"), aiProvider, uploadResource); // Voyage AI only — no Claude quota applied
 
 // Assignment tracking
 router.get   ("/:courseId/assignments",                    auth, getAssignments);
