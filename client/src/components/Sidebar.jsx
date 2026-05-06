@@ -74,7 +74,7 @@ function NavItem({ item, isActive, onClick }) {
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
-export default function Sidebar({ activeId, onNavigate }) {
+export default function Sidebar({ activeId, onNavigate, user, onLogout }) {
   const [localActive, setLocalActive] = useState("dashboard");
 
   const current = activeId ?? localActive;
@@ -138,23 +138,35 @@ export default function Sidebar({ activeId, onNavigate }) {
       </nav>
 
       {/* User profile strip */}
-      <div className="px-3 pb-5 pt-3 border-t border-white/40">
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-[9px] transition-all duration-150 hover:bg-white/45 cursor-pointer">
+      <div className="px-3 pb-5 pt-3 border-t border-white/40 space-y-1">
+        <div className="w-full flex items-center gap-3 px-3 py-2 rounded-[9px]">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center shrink-0 shadow-sm">
-            <span className="text-white text-[11px] font-semibold">A</span>
+            <span className="text-white text-[11px] font-semibold">
+              {user?.name?.[0]?.toUpperCase() ?? "?"}
+            </span>
           </div>
           <div className="flex-1 text-left min-w-0">
             <p
               className="text-[13px] font-medium text-gray-800 leading-tight truncate"
               style={{ letterSpacing: "-0.011em" }}
             >
-              Aditya Chauhan
+              {user?.name ?? "Unknown"}
             </p>
-            <p className="text-[11px] text-gray-400 truncate">Student</p>
+            <p className="text-[11px] text-gray-400 truncate">{user?.email ?? ""}</p>
           </div>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 shrink-0">
-            <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+        </div>
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-[9px] text-[12px] font-medium
+                     text-gray-500 hover:text-rose-600 hover:bg-rose-50/60
+                     transition-all duration-150 cursor-pointer"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
           </svg>
+          Sign out
         </button>
       </div>
     </aside>

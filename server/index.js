@@ -16,7 +16,10 @@ app.get("/", (req, res) => {
 });
 
 // Routes
+import authRoutes   from "./routes/authRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+
+app.use("/api/auth",    authRoutes);
 app.use("/api/courses", courseRoutes);
 
 app.listen(PORT, () => {
