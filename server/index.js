@@ -16,11 +16,13 @@ app.get("/", (req, res) => {
 });
 
 // Routes
-import authRoutes   from "./routes/authRoutes.js";
-import courseRoutes from "./routes/courseRoutes.js";
+import authRoutes     from "./routes/authRoutes.js";
+import courseRoutes   from "./routes/courseRoutes.js";
+import researchRoutes from "./routes/researchRoutes.js";
 
-app.use("/api/auth",    authRoutes);
-app.use("/api/courses", courseRoutes);
+app.use("/api/auth",     authRoutes);
+app.use("/api/courses",  courseRoutes);
+app.use("/api/research", researchRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
