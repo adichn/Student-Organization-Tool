@@ -1,1 +1,119 @@
 @import "tailwindcss";
+
+/* ── SF Pro system font stack ─────────────────────────────────────────────── */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Letter-spacing scale that mirrors SF Pro optical sizing */
+  --tracking-display: -0.03em;
+  --tracking-tight: -0.022em;
+  --tracking-snug: -0.011em;
+  --tracking-label: 0.06em;
+}
+
+/* ── Reset ────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Glassmorphism utilities ──────────────────────────────────────────────── */
+
+/* Default card — 68% white, 20px blur */
+@utility glass-card {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.07),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.80);
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.10),
+      0 2px 8px rgba(0, 0, 0, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+}
+
+/* Elevated card — more opaque, deeper shadow, larger radius */
+@utility glass-card-elevated {
+  background: rgba(255, 255, 255, 0.80);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.10),
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.90);
+    box-shadow:
+      0 16px 56px rgba(0, 0, 0, 0.13),
+      0 4px 12px rgba(0, 0, 0, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  }
+}
+
+/* Subtle card — more transparent, lighter blur for nested/secondary use */
+@utility glass-card-subtle {
+  background: rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.52);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+  }
+}
+
+/* Sidebar — heaviest blur, left border only, vibrancy-style saturation */
+@utility glass-sidebar {
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(32px) saturate(210%);
+  -webkit-backdrop-filter: blur(32px) saturate(210%);
+  border-right: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow:
+    2px 0 16px rgba(0, 0, 0, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.68);
+}
+
+/* Active nav pill — frosted white with subtle inset highlight */
+@utility glass-nav-active {
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 9px;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
