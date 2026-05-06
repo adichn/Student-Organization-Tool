@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Sidebar from "./components/Sidebar";
 import YearView from "./views/YearView";
 import SemesterView from "./views/SemesterView";
 import CourseView from "./views/CourseView";
 import LoginPage from "./pages/LoginPage";
+import CommandMenu from "./components/CommandMenu";
 import { YEAR_DATA } from "./data/mockData";
 import { getUser, saveAuth, clearAuth } from "./utils/auth";
 import "./App.css";
@@ -40,6 +41,19 @@ export default function App() {
   const [activeCourse,   setActiveCourse]   = useState(null);
   const [direction,      setDirection]      = useState(1);
   const [activeNav,      setActiveNav]      = useState("dashboard");
+  const [cmdOpen,        setCmdOpen]        = useState(false);
+
+  // ⌘K / Ctrl+K → toggle command palette
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   function handleAuthSuccess(token, user) {
     saveAuth(token, user);
@@ -75,7 +89,7 @@ export default function App() {
 
   return (
     <div className="flex font-sans" style={{ background: BG, minHeight: "100svh" }}>
-      <Sidebar activeId={activeNav} onNavigate={setActiveNav} user={authUser} onLogout={handleLogout} />
+      <Sidebar activeId={activeNav} onNavigate={setActiveNav} user={authUser} onLogout={handleLogout} onOpenSearch={() => setCmdOpen(true)} />
 
       {/* Fixed-size main — each page scrolls independently */}
       <main className="flex-1 h-screen overflow-hidden relative">
@@ -114,6 +128,13 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      <CommandMenu
+        yearData={YEAR_DATA}
+        onNavigateToCourse={(course, semester) => push("course", { course, semester })}
+        open={cmdOpen}
+        onOpenChange={setCmdOpen}
+      />
     </div>
   );
 }

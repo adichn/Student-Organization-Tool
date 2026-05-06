@@ -74,7 +74,7 @@ function NavItem({ item, isActive, onClick }) {
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
-export default function Sidebar({ activeId, onNavigate, user, onLogout }) {
+export default function Sidebar({ activeId, onNavigate, user, onLogout, onOpenSearch }) {
   const [localActive, setLocalActive] = useState("dashboard");
 
   const current = activeId ?? localActive;
@@ -107,8 +107,28 @@ export default function Sidebar({ activeId, onNavigate, user, onLogout }) {
         </p>
       </div>
 
+      {/* Search trigger */}
+      <div className="px-3 pt-2 pb-1">
+        <button
+          onClick={onOpenSearch}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[9px]
+                     bg-black/[0.04] hover:bg-black/[0.07] border border-black/[0.06]
+                     text-gray-500 hover:text-gray-700 transition-colors duration-100
+                     cursor-pointer text-left"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span className="flex-1 text-[12px] font-medium">Search…</span>
+          <span className="flex items-center gap-0.5 shrink-0">
+            <kbd className="text-[10px] font-semibold text-gray-400 bg-white/80 border border-gray-200 rounded-[4px] px-1 py-0.5 leading-none shadow-sm">⌘</kbd>
+            <kbd className="text-[10px] font-semibold text-gray-400 bg-white/80 border border-gray-200 rounded-[4px] px-1 py-0.5 leading-none shadow-sm">K</kbd>
+          </span>
+        </button>
+      </div>
+
       {/* Divider */}
-      <div className="mx-4 my-3 h-px bg-white/60 border-t border-gray-200/50" />
+      <div className="mx-4 my-2.5 h-px bg-white/60 border-t border-gray-200/50" />
 
       {/* Navigation */}
       <nav className="flex-1 px-3 overflow-y-auto space-y-5">
