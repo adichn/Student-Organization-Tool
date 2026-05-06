@@ -16,12 +16,8 @@ app.get("/", (req, res) => {
 });
 
 // Routes
-// AI-enabled routes: pass aiProvider as route-level middleware, not globally,
-// so the key resolution only runs for requests that actually need it.
-//
-// import aiProvider from "./middleware/aiProvider.js";
-// import aiRoutes from "./routes/aiRoutes.js";
-// app.use("/api/ai", aiProvider, aiRoutes);
+import courseRoutes from "./routes/courseRoutes.js";
+app.use("/api/courses", courseRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
