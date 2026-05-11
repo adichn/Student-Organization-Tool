@@ -30,7 +30,7 @@ export async function register(req, res) {
     return res.status(409).json({ error: "An account with that email already exists." });
   }
 
-  const user  = await User.create({ name: name.trim(), email, password });
+  const user  = await User.create({ name: name.trim(), email, passwordHash: password });
   const token = signToken(user._id);
 
   res.status(201).json({ token, user: safeUser(user) });
@@ -44,7 +44,7 @@ export async function login(req, res) {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
-  const user = await User.findOne({ email: email.toLowerCase() });
+  const user = await User.findOne({ email: email.toLowerCase() }).select("+passwordHash");
 
   // Use a constant-time comparison even when the user is not found, to prevent
   // timing-based user-enumeration attacks.

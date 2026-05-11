@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Year from "../models/Academic.js";
 import Embedding from "../models/Embedding.js";
-import { embed } from "../config/voyageClient.js";
+import { embed } from "../config/geminiClient.js";
 
 // Number of candidate vectors Atlas evaluates before ranking (HNSW tuning).
 // Must be >= limit; 10× limit is a good starting point for high recall.

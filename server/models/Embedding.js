@@ -3,7 +3,7 @@ import { Schema, model } from "mongoose";
 // Each document is one text chunk from a course resource, plus its vector.
 //
 // Atlas Vector Search index must be created once (see scripts/createVectorIndex.js):
-//   - field  : "embedding"  type: vector  dimensions: 1024  similarity: cosine
+//   - field  : "embedding"  type: vector  dimensions: 768   similarity: cosine
 //   - fields : "courseId", "user"  type: filter
 const EmbeddingSchema = new Schema(
   {
@@ -22,7 +22,7 @@ const EmbeddingSchema = new Schema(
     // The raw text chunk that was embedded
     content: { type: String, required: true },
 
-    // voyage-3 produces 1024-dimensional vectors
+    // text-embedding-004 produces 768-dimensional vectors
     embedding: { type: [Number], required: true },
 
     // Position of this chunk within the source resource (for ordering citations)

@@ -1,14 +1,14 @@
 import mongoose from "mongoose";
 import Year from "../models/Academic.js";
 import Embedding from "../models/Embedding.js";
-import { embed } from "../config/voyageClient.js";
+import { embed } from "../config/geminiClient.js";
 import { search } from "../config/searchClient.js";
 
 // ── Text processing ───────────────────────────────────────────────────────────
 
 const CHUNK_SIZE    = 1200;
 const CHUNK_OVERLAP = 200;
-const EMBED_BATCH   = 50;
+const EMBED_BATCH   = 100;   // Gemini batchEmbedContents hard limit
 
 function chunkText(text) {
   const clean = text.replace(/\s+/g, " ").trim();

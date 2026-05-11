@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import GlassCard from "../components/GlassCard";
-import ProgressBar from "../components/ProgressBar";
-import ProgressRing from "../components/ProgressRing";
-import DeleteModal from "../components/DeleteModal";
+import GlassCard       from "../components/GlassCard";
+import ProgressBar     from "../components/ProgressBar";
+import ProgressRing    from "../components/ProgressRing";
+import DeleteModal     from "../components/DeleteModal";
+import ResourceManager from "../components/ResourceManager";
 import {
   useAssignments,
   useUpdateAssignment,
   useCreateAssignment,
 } from "../hooks/useAssignments";
+import { useDeleteEvent } from "../hooks/useEvents";
+import { useDeleteCourse } from "../hooks/useAcademic";
 
 // ── Static config ─────────────────────────────────────────────────────────────
 
@@ -24,29 +27,6 @@ const STATUS_CONFIG = {
   "todo":        { label: "To-Do",       ring: "bg-gray-100   text-gray-600",   dot: "bg-gray-400",    next: "in-progress" },
   "in-progress": { label: "In Progress", ring: "bg-amber-50   text-amber-700",  dot: "bg-amber-400",   next: "completed"   },
   "completed":   { label: "Completed",   ring: "bg-emerald-50 text-emerald-700",dot: "bg-emerald-500", next: "todo"        },
-};
-
-const RESOURCE_TYPE_ICON = {
-  document: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-    </svg>
-  ),
-  file: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="13 2 13 9 20 9" />
-    </svg>
-  ),
-  link: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-    </svg>
-  ),
-  video: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
-    </svg>
-  ),
 };
 
 // ── Animation variants ────────────────────────────────────────────────────────
@@ -93,6 +73,108 @@ function TrashIcon() {
       <path d="M10 11v6M14 11v6" />
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
     </svg>
+  );
+}
+
+// ── EventRow — event list item with inline delete confirm ────────────────────
+
+function EventRow({ ev, courseId, style, isPast = false }) {
+  const [confirming, setConfirming] = useState(false);
+  const { mutate: deleteEvent, isPending } = useDeleteEvent();
+
+  function handleDelete(e) {
+    e.stopPropagation();
+    deleteEvent({ courseId, eventId: ev._id });
+  }
+
+  return (
+    <motion.li
+      variants={listItem}
+      className={[
+        "group relative flex items-center gap-3 px-4 py-3",
+        isPast ? "opacity-60" : "",
+      ].join(" ")}
+    >
+      {/* Leading icon */}
+      {isPast && ev.completed ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          className="text-emerald-500 shrink-0">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <span className={`w-2 h-2 rounded-full shrink-0 ${style(ev.type).dot}`} />
+      )}
+
+      {/* Title + date */}
+      <div className="flex-1 min-w-0">
+        <p className={[
+          "text-[13px] font-medium text-gray-900 leading-tight",
+          isPast && ev.completed ? "line-through text-gray-700" : "",
+        ].join(" ")} style={{ letterSpacing: "-0.011em" }}>
+          {ev.title}
+        </p>
+        <p className="text-[11px] text-gray-400 mt-0.5">{formatDate(ev.date)}</p>
+      </div>
+
+      {/* Type pill or relative date */}
+      {isPast ? (
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${style(ev.type).pill} opacity-70`}>
+          {ev.type}
+        </span>
+      ) : (
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${style(ev.type).pill}`}>
+          {relativeDate(ev.date)}
+        </span>
+      )}
+
+      {/* Delete — inline confirm */}
+      <AnimatePresence mode="wait">
+        {confirming ? (
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex items-center gap-1.5 shrink-0"
+          >
+            <span className="text-[11px] text-rose-500 font-medium">Delete?</span>
+            <button
+              onClick={handleDelete}
+              disabled={isPending}
+              className="px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-rose-50 text-rose-600
+                         hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer
+                         disabled:opacity-50 disabled:cursor-wait active:scale-95"
+            >
+              {isPending ? "…" : "Yes"}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
+              className="px-2 py-0.5 rounded-[6px] text-[11px] font-semibold bg-gray-100 text-gray-500
+                         hover:bg-gray-200 border border-gray-200 transition-colors cursor-pointer
+                         active:scale-95"
+            >
+              No
+            </button>
+          </motion.div>
+        ) : (
+          <motion.button
+            key="trash"
+            onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0 }}
+            whileHover={{ opacity: 1 }}
+            className="opacity-0 group-hover:opacity-100 shrink-0 p-1 rounded-[6px]
+                       text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all
+                       duration-150 cursor-pointer"
+            title="Delete event"
+          >
+            <TrashIcon />
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </motion.li>
   );
 }
 
@@ -283,10 +365,10 @@ function AssignmentsTab({ course }) {
         <div className="flex items-center gap-4">
           <ProgressRing value={done} max={total} size={64} strokeWidth={5.5} />
           <div>
-            <p className="text-[13px] font-medium text-white/90" style={{ letterSpacing: "-0.011em" }}>
+            <p className="text-[13px] font-medium text-gray-900" style={{ letterSpacing: "-0.011em" }}>
               {done} of {total} complete
             </p>
-            <p className="text-[11px] text-white/55 mt-0.5">
+            <p className="text-[11px] text-gray-500 mt-0.5">
               {grouped["in-progress"].length > 0
                 ? `${grouped["in-progress"].length} in progress`
                 : grouped["todo"].length > 0
@@ -301,8 +383,8 @@ function AssignmentsTab({ course }) {
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           className="flex items-center gap-2 px-4 py-2 rounded-[10px] text-[13px]
-                     font-medium text-white/85 bg-white/[0.15] backdrop-blur-sm
-                     border border-white/20 hover:bg-white/[0.22] transition-colors
+                     font-medium text-gray-700 bg-gray-100
+                     border border-gray-200 hover:bg-gray-200 transition-colors
                      duration-150 cursor-pointer"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -343,7 +425,7 @@ function AssignmentsTab({ course }) {
             return (
               <section key={status}>
                 <p
-                  className="text-[10px] font-semibold text-white/60 uppercase mb-2"
+                  className="text-[10px] font-semibold text-gray-500 uppercase mb-2"
                   style={{ letterSpacing: "0.07em" }}
                 >
                   {STATUS_SECTION_LABEL[status]} · {items.length}
@@ -367,13 +449,20 @@ function AssignmentsTab({ course }) {
   );
 }
 
+// ── Resources tab — delegates entirely to ResourceManager ─────────────────────
+
+function ResourcesTab({ course }) {
+  return <ResourceManager course={course} />;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 const TABS = ["assignments", "events", "resources"];
 
-export default function CourseView({ course, semester, onBack }) {
+export default function CourseView({ course, semester, yearId, onBack }) {
   const [tab,        setTab]        = useState("assignments");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const { mutateAsync: deleteCourse, isPending: isDeleting } = useDeleteCourse();
   const now = new Date();
 
   const assignments = course.events.filter((e) => e.type === "assignment");
@@ -402,35 +491,36 @@ export default function CourseView({ course, semester, onBack }) {
           whileHover={{ x: -2 }}
           whileTap={{ scale: 0.93 }}
           onClick={onBack}
-          className="flex items-center gap-1 text-[13px] text-white/75 hover:text-white transition-colors cursor-pointer"
+          className="flex items-center gap-1 text-[13px] text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />
           </svg>
           {semester?.name}
         </motion.button>
-        <span className="text-white/35 text-[13px]">/</span>
-        <span className="text-[13px] text-white/90 font-medium">{course.title}</span>
+        <span className="text-gray-400 text-[13px]">/</span>
+        <span className="text-[13px] text-gray-900 font-medium">{course.title}</span>
       </div>
 
       {/* ── Course header ─────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-start gap-4">
           <div
-            className={`w-12 h-12 rounded-[14px] bg-gradient-to-br ${course.gradient} shadow-md shrink-0 mt-0.5`}
+            className="w-12 h-12 rounded-[14px] shadow-md shrink-0 mt-0.5"
+            style={{ background: course.gradientStyle }}
           />
           <div>
-            <p className="text-[11px] font-semibold text-white/60 uppercase mb-0.5" style={{ letterSpacing: "0.06em" }}>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase mb-0.5" style={{ letterSpacing: "0.06em" }}>
               {course.code}
             </p>
             <h1
-              className="text-[26px] font-semibold text-white leading-tight"
-              style={{ letterSpacing: "-0.03em", textShadow: "0 1px 12px rgba(0,0,0,0.14)" }}
+              className="text-[26px] font-semibold text-gray-900 leading-tight"
+              style={{ letterSpacing: "-0.03em" }}
             >
               {course.title}
             </h1>
             {course.description && (
-              <p className="text-[13px] text-white/65 mt-1">{course.description}</p>
+              <p className="text-[13px] text-gray-500 mt-1">{course.description}</p>
             )}
           </div>
         </div>
@@ -440,9 +530,9 @@ export default function CourseView({ course, semester, onBack }) {
           whileHover={{ scale: 1.06, backgroundColor: "rgba(255,255,255,0.22)" }}
           whileTap={{ scale: 0.94 }}
           className="flex items-center gap-2 px-3 py-2 rounded-[10px] text-[13px]
-                     font-medium text-white/70 hover:text-rose-300
-                     bg-white/[0.12] backdrop-blur-sm transition-colors duration-150
-                     border border-white/20 cursor-pointer shrink-0 mt-1"
+                     font-medium text-gray-600 hover:text-rose-600
+                     bg-gray-100 hover:bg-rose-50 transition-colors duration-150
+                     border border-gray-200 cursor-pointer shrink-0 mt-1"
         >
           <TrashIcon />
           Delete Course
@@ -472,7 +562,7 @@ export default function CourseView({ course, semester, onBack }) {
       </GlassCard>
 
       {/* ── Tab control ───────────────────────────────────────────────────── */}
-      <div className="flex items-center mb-5 p-1 rounded-[11px] bg-white/[0.18] backdrop-blur-sm w-fit">
+      <div className="flex items-center mb-5 p-1 rounded-[11px] bg-black/[0.05] w-fit">
         {TABS.map((t) => (
           <motion.button
             key={t}
@@ -480,7 +570,7 @@ export default function CourseView({ course, semester, onBack }) {
             className={[
               "relative px-4 py-1.5 text-[13px] font-medium rounded-[8px] cursor-pointer",
               "transition-colors duration-100 capitalize min-w-[96px] text-center",
-              tab === t ? "text-gray-900" : "text-white/80 hover:text-white",
+              tab === t ? "text-gray-900" : "text-gray-500 hover:text-gray-900",
             ].join(" ")}
           >
             {tab === t && (
@@ -508,24 +598,13 @@ export default function CourseView({ course, semester, onBack }) {
           <motion.div key="events" {...tabFade} className="space-y-6">
             {upcoming.length > 0 && (
               <section>
-                <p className="text-[11px] font-semibold text-white/70 uppercase mb-3" style={{ letterSpacing: "0.06em" }}>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase mb-3" style={{ letterSpacing: "0.06em" }}>
                   Upcoming · {upcoming.length}
                 </p>
                 <GlassCard variant="elevated" className="divide-y divide-gray-100/70">
                   <motion.ul variants={listStagger} initial="hidden" animate="show">
                     {upcoming.map((ev) => (
-                      <motion.li key={ev._id} variants={listItem} className="flex items-center gap-3 px-4 py-3">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${style(ev.type).dot}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium text-gray-900 leading-tight" style={{ letterSpacing: "-0.011em" }}>
-                            {ev.title}
-                          </p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{formatDate(ev.date)}</p>
-                        </div>
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${style(ev.type).pill}`}>
-                          {relativeDate(ev.date)}
-                        </span>
-                      </motion.li>
+                      <EventRow key={ev._id} ev={ev} courseId={course._id} style={style} />
                     ))}
                   </motion.ul>
                 </GlassCard>
@@ -534,30 +613,13 @@ export default function CourseView({ course, semester, onBack }) {
 
             {past.length > 0 && (
               <section>
-                <p className="text-[11px] font-semibold text-white/50 uppercase mb-3" style={{ letterSpacing: "0.06em" }}>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-3" style={{ letterSpacing: "0.06em" }}>
                   Past · {past.length}
                 </p>
                 <GlassCard className="divide-y divide-gray-100/50">
                   <motion.ul variants={listStagger} initial="hidden" animate="show">
                     {past.map((ev) => (
-                      <motion.li key={ev._id} variants={listItem} className="flex items-center gap-3 px-4 py-3 opacity-60">
-                        {ev.completed ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500 shrink-0">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${style(ev.type).dot}`} />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[13px] font-medium text-gray-700 leading-tight ${ev.completed ? "line-through" : ""}`} style={{ letterSpacing: "-0.011em" }}>
-                            {ev.title}
-                          </p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{formatDate(ev.date)}</p>
-                        </div>
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${style(ev.type).pill} opacity-70`}>
-                          {ev.type}
-                        </span>
-                      </motion.li>
+                      <EventRow key={ev._id} ev={ev} courseId={course._id} style={style} isPast />
                     ))}
                   </motion.ul>
                 </GlassCard>
@@ -568,30 +630,7 @@ export default function CourseView({ course, semester, onBack }) {
 
         {tab === "resources" && (
           <motion.div key="resources" {...tabFade}>
-            <div className="grid grid-cols-2 gap-3">
-              {course.resources.map((res, i) => (
-                <motion.div
-                  key={res._id}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.28, delay: i * 0.06, ease: [0.4, 0, 0.2, 1] }}
-                >
-                  <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} className="cursor-pointer">
-                    <GlassCard variant="subtle" className="p-4 flex items-start gap-3">
-                      <span className="text-gray-500 mt-0.5 shrink-0">
-                        {RESOURCE_TYPE_ICON[res.type] ?? RESOURCE_TYPE_ICON.file}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-medium text-gray-900 leading-snug truncate" style={{ letterSpacing: "-0.011em" }}>
-                          {res.title}
-                        </p>
-                        <p className="text-[11px] text-gray-400 mt-0.5 capitalize">{res.type}</p>
-                      </div>
-                    </GlassCard>
-                  </motion.div>
-                </motion.div>
-              ))}
-            </div>
+            <ResourcesTab course={course} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -600,7 +639,15 @@ export default function CourseView({ course, semester, onBack }) {
     <DeleteModal
       isOpen={deleteOpen}
       onClose={() => setDeleteOpen(false)}
-      onConfirm={onBack}
+      onConfirm={async () => {
+        await deleteCourse({
+          yearId:   String(yearId),
+          semId:    String(semester._id),
+          courseId: String(course._id),
+        });
+        onBack();
+      }}
+      loading={isDeleting}
       entityType="Course"
       entityName={course.title}
       description={deleteDescription}

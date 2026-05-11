@@ -1,17 +1,20 @@
 import { Router } from "express";
-import auth from "../middleware/auth.js";
-import aiProvider from "../middleware/aiProvider.js";
-import aiRateLimit from "../middleware/aiRateLimit.js";
+import protect from "../middleware/protect.js";
+import aiGatekeeper from "../middleware/aiGatekeeper.js";
 import { searchResearch, saveResearch } from "../controllers/researchController.js";
 
 const router = Router();
 
-// POST /api/research/search — term generation + search + AI synthesis
-// aiRateLimit after aiProvider: users with x-user-api-key bypass the quota.
-router.post("/search", auth, aiProvider, aiRateLimit, searchResearch);
+// POST /api/research/search
+// protect  → aiGatekeeper → searchResearch
+// aiGatekeeper handles both key resolution and default-key rate limiting
+// in one step; users who send x-user-api-key bypass the quota entirely.
+router.post("/search", protect, aiGatekeeper, searchResearch);
 
-// POST /api/research/save — persist summary as a course resource + embed for RAG
-// aiProvider not needed here — embeddings use the Voyage key directly.
-router.post("/save", auth, saveResearch);
+// POST /api/research/save
+// Persists an AI-generated summary as a course resource and embeds it for RAG.
+// Embeddings are produced via Voyage AI (server-side key) — no Claude call,
+// so aiGatekeeper is not needed here.
+router.post("/save", protect, saveResearch);
 
 export default router;

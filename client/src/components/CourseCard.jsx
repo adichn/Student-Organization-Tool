@@ -41,12 +41,13 @@ export default function CourseCard({ course, onClick, onDelete }) {
       onClick={() => onClick(course)}
       className="cursor-pointer h-full group"
     >
-      <GlassCard className="p-5 h-full flex flex-col relative">
+      <GlassCard variant="interactive" className="p-5 h-full flex flex-col relative">
 
         {/* ── Top row: accent dot + progress ring ─────────────────────── */}
         <div className="flex items-start justify-between mb-3">
           <div
-            className={`w-8 h-8 rounded-[10px] bg-gradient-to-br ${course.gradient} shadow-sm shrink-0 mt-0.5`}
+            className="w-8 h-8 rounded-[10px] shadow-sm shrink-0 mt-0.5"
+            style={{ background: course.gradientStyle }}
           />
           <ProgressRing value={done} max={assignments.length} size={52} strokeWidth={4.5} />
         </div>

@@ -17,6 +17,7 @@ import { useCreateAssignment } from "../hooks/useAssignments";
 function buildIndex(yearData) {
   const courses   = [];
   const resources = [];
+  if (!yearData) return { courses, resources };
   for (const semester of yearData.semesters) {
     for (const course of semester.courses) {
       courses.push({ course, semester });
