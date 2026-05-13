@@ -93,22 +93,10 @@ async function batchRequest(texts, apiKey) {
  * @param   {string[]}          inputs  Texts to embed
  * @returns {Promise<number[][]>}        Parallel array of 768-dim vectors
  */
-export async function embed(inputs) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not set in environment.");
-  if (inputs.length === 0) return [];
-
-  const results = [];
-
-  for (let i = 0; i < inputs.length; i += BATCH_SIZE) {
-    if (i > 0) await sleep(INTER_BATCH_MS);   // rate-limit guard between batches
-
-    const batch = inputs.slice(i, i + BATCH_SIZE);
-    const vecs  = await batchRequest(batch, apiKey);
-    results.push(...vecs);
-  }
-
-  return results;
+export async function embed(_inputs) {
+  // Embeddings are disabled — RAG search is unavailable until a working
+  // embedding provider is configured. Uploads and extraction are unaffected.
+  return [];
 }
 
 // ── Util ──────────────────────────────────────────────────────────────────────

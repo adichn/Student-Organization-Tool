@@ -79,70 +79,170 @@ function isDocx(file) {
 async function extractEventsFromSyllabus(text, aiClient) {
   if (!aiClient) return [];
 
-  // Use up to 30 000 chars — enough for a full syllabus while staying within limits
-  const snippet = text.slice(0, 30_000);
+  // 40 000 chars covers dense full-semester schedules while staying well within
+  // Claude's 200 k-token context window.
+  const snippet = text.slice(0, 40_000);
 
-  const systemPrompt = `You are an exhaustive academic syllabus / document parser. Your job is to extract EVERY time-bound item — deadlines, deliverables, and scheduled events — from the supplied text.
+  const systemPrompt = `You are a precise academic syllabus extraction engine. Your ONLY output must be a single valid JSON object that passes JSON.parse() with zero modifications. No markdown, no code fences, no prose before or after the JSON.
 
-You MUST respond with ONLY a valid JSON object. No markdown code fences, no prose, no explanation.
-
-Output schema:
+OUTPUT SCHEMA — use these exact field names, no others:
 {
-  "items": [
+  "events": [
     {
-      "title":    "string — descriptive name of the item (required)",
-      "date":     "YYYY-MM-DD — the due date or scheduled date (required)",
-      "type":     "one of: assignment | exam | lecture | reminder | other",
-      "weight":   number — percentage of final grade, 0 if unknown
+      "title":        string  — concise but descriptive name, max 200 chars,
+      "date":         string  — YYYY-MM-DD only (ISO-8601 date, always required),
+      "type":         string  — exactly one of: "assignment" | "exam" | "lecture" | "reminder" | "other",
+      "weight":       number  — percentage of final grade as a plain number (e.g. 10 for 10%), or 0 if not graded,
+      "source_quote": string  — the exact verbatim sentence or phrase from the source text that proves this event exists and reveals its date (required, max 300 chars)
     }
   ]
 }
 
-EXTRACTION RULES — be thorough, miss nothing:
-1. Extract ALL of the following when a date is mentioned:
-   - Assignments, homework sets, problem sets, written assignments
-   - Quizzes (weekly, pop, or scheduled)
-   - Midterms, midterm exams, mid-semester exams
-   - Final exams, final projects, final presentations
-   - Projects (individual or group), project proposals, project check-ins
-   - Labs, lab reports, lab practicals
-   - Presentations, demos, poster sessions
-   - Readings, reading responses, response papers
-   - Essays, reports, case studies, research papers
-   - Participation, attendance, discussion posts
-   - Lectures, class sessions, workshop sessions
-   - Office hours (only if they have a specific one-time date)
-   - Review sessions, study sessions, exam prep sessions
-   - Deadlines (add/drop, withdrawal, registration)
-   - Holidays, no-class days, spring break, reading week
-   - Peer reviews, peer evaluations
-   - Any other item that has a scheduled or due date
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANTI-TRUNCATION DIRECTIVE — READ THIS FIRST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST process the ENTIRE document from Week 1 to the final exam. Do NOT stop early, summarise, or skip later-term content. If the schedule covers 14 weeks, extract events from all 14 weeks. Every quiz, assignment, lab, and lecture must appear individually in the output array. If you would otherwise truncate: keep going. Completeness is mandatory.
 
-2. Type mapping:
-   - Use "assignment" for: assignments, homework, problem sets, labs, lab reports, essays, reports, readings, response papers, projects, project proposals, presentations, peer reviews
-   - Use "exam" for: exams, quizzes, midterms, finals, tests, assessments
-   - Use "lecture" for: lectures, class sessions, workshops, review sessions, study sessions, no-class days, holidays, breaks
-   - Use "reminder" for: registration deadlines, admin deadlines, add/drop dates
-   - Use "other" for anything that does not fit above
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 1 — EXHAUSTIVE SCHEDULE EXTRACTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Extract EVERY scheduled event — not only assessments.
 
-3. Date handling:
-   - Convert all date formats to YYYY-MM-DD.
-   - If only a month and day are given (e.g. "March 15"), infer the year from context — use the academic year mentioned in the document, or the current calendar year.
-   - Skip items with no specific date at all (e.g. "to be announced").
-   - For date ranges (e.g. "Week 3"), use the first day of that range.
+LECTURES & CLASS SESSIONS (type "lecture"):
+- Every individual lecture, seminar, tutorial, or lab session in the schedule.
+- Include the topic in the title when given. Examples:
+    "Lecture: Society & Culture"
+    "Seminar 3 — Postcolonial Theory"
+    "Lab 5: Cell Cultures"
+    "No Class — Thanksgiving"
+- If a recurring pattern is described ("Lectures every Monday/Wednesday") and individual dates are NOT listed, generate one event per occurrence for the full semester by calculating each date from the course start date.
+- No-class days, holidays, reading weeks, and breaks are type "lecture".
 
-4. Title:
-   - Include the item number or module name when helpful (e.g. "Homework 3 — Recursion", "Quiz 2", "Midterm Exam 1").
-   - Keep titles under 200 characters.
+ASSESSMENTS (type "assignment" or "exam"):
+- Assignments, homework sets, problem sets, essays, reports, lab reports, projects, presentations, peer reviews, response papers, readings with a due date → type "assignment"
+- Quizzes (scheduled or recurring), midterms, finals, tests → type "exam"
+- Project milestones (proposal, draft, check-in, final submission) → type "assignment"
 
-5. If absolutely nothing is found, return { "items": [] }.`;
+ADMINISTRATIVE (type "reminder"):
+- Add/drop deadlines, withdrawal deadlines, registration dates.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 2 — FLOATING & ONGOING ASSESSMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Some graded items have no fixed date. You MUST NOT omit them.
+
+Identify these patterns anywhere in the document:
+- "Class Participation", "Participation Grade", "In-Class Participation"
+- "Attendance", "Random Attendance", "Attendance Checks"
+- "Pop Quizzes", "Random Quizzes", "Unannounced Quizzes"
+- "Weekly Reflections", "Discussion Posts", "Online Participation"
+- Any graded item described as "ongoing", "throughout the semester", "at the instructor's discretion"
+
+For each one found, create a single placeholder event:
+  type    → "reminder"
+  title   → item name + " (Ongoing)", e.g., "Class Participation (Ongoing)"
+  date    → the LAST DAY OF CLASSES or FINAL EXAM DATE found in the document.
+             If neither appears explicitly, use the latest date visible anywhere in the schedule.
+             You MUST output a valid YYYY-MM-DD — never output the word "ongoing".
+  weight  → the stated percentage (e.g., 10 for "worth 10%")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 3 — BONUS MARKS & EXTRA CREDIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Scan ALL narrative paragraphs (not just schedule tables) for:
+- "Bonus", "Bonus marks", "Bonus points"
+- "Extra credit", "Additional credit"
+- "Course Feedback Bonus", "Teaching evaluation bonus"
+- Any phrase like "completing X earns Y% bonus" or "up to N% extra"
+
+For each one found:
+  type    → "other"
+  title   → descriptive name, e.g., "Course Feedback Bonus", "Extra Credit — Research Participation"
+  date    → the stated deadline; if none, use the last day of classes / final exam date
+  weight  → the bonus value as a POSITIVE number (e.g., 1 for "+1%"). Never 0 for a bonus with a stated value.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 4 — WEIGHT DISTRIBUTION MATH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When the syllabus states an AGGREGATE weight for a group (e.g., "5 Assignments worth 25% total"), distribute the weight across individual items.
+
+Formula: per_item_weight = aggregate_weight ÷ item_count
+
+Examples:
+  "5 Assignments worth 25% total"   → each assignment: weight 5
+  "4 Lab Reports = 20%"             → each lab report:  weight 5
+  "3 Quizzes, together 15%"         → each quiz:        weight 5
+  "Weekly readings (10 total, 20%)" → each reading:     weight 2
+  "Midterm (30%)" [single item]     → weight 30
+
+Rules:
+- If the count is known AND individual events are listed → assign the distributed weight to every individual event.
+- If the aggregate is stated but items are NOT individually listed → create ONE summary event (e.g., "Assignments (×5) — 25% total") with the full aggregate weight.
+- If only a percentage is given with no count → create a summary event (e.g., "Assignments — 25% total") with weight equal to the full aggregate.
+- NEVER leave weight as 0 for any graded item that has a stated percentage anywhere in the document. Search the full text before defaulting to 0.
+- Include the distribution context in the title for clarity: "Assignment 2 (5% of 25% total)".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 5 — DATE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Every "date" field MUST be a valid YYYY-MM-DD string. Never output words like "ongoing", "TBD", or "varies".
+- Convert all formats: "March 15", "15/03/2025", "03-15-25" → YYYY-MM-DD.
+- Missing year: infer from the academic year stated in the document.
+- "Week N" with no explicit date: calculate the calendar date using the course start date + (N-1) weeks.
+- Recurring weekly events without individual dates: generate one event per week for the full semester.
+- Date ranges ("Spring Break: March 10–14"): use the FIRST day of the range.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 6 — TYPE MAPPING (quick reference)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"assignment" → assignments, homework, problem sets, labs, lab reports, essays, reports,
+               readings, response papers, projects, presentations, peer reviews
+"exam"       → quizzes (any kind), midterms, finals, tests, assessments
+"lecture"    → lectures, seminars, tutorials, workshops, review sessions, study sessions,
+               no-class days, holidays, breaks
+"reminder"   → admin deadlines, add/drop dates, ongoing/floating grade items
+"other"      → bonus marks, extra credit, anything not covered above
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 7 — SOURCE QUOTES (MANDATORY FOR EVERY EVENT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Every event in the output MUST include a source_quote field.
+
+- Copy the exact, verbatim sentence or phrase from the document text that proves this event exists and contains its date or description. Do NOT paraphrase or rewrite.
+- The quote must appear word-for-word in the source text so it can be located and highlighted programmatically. A single character difference will break the highlight.
+- If the evidence spans two sentences, include both separated by " … " (e.g. "Quiz 2 is on March 10. … It is worth 10% of your final grade.").
+- For floating/ongoing items with no explicit date, quote the sentence that names the item and states its weight.
+- For bonus items, quote the exact sentence from the narrative paragraph that mentions the bonus.
+- Maximum 300 characters per quote.
+- Never leave source_quote as an empty string. Every event requires provenance.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMPLETENESS CHECKLIST — verify before outputting
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before writing the JSON, confirm:
+□ Events extracted from EVERY week in the schedule?
+□ ALL recurring items included individually (Quiz 1, Quiz 2, Quiz 3 … not just Quiz 1)?
+□ Placeholder events created for ALL unscheduled but graded items (participation, pop quizzes, attendance)?
+□ Narrative paragraphs scanned for bonus/extra credit?
+□ ALL graded items have weight > 0 if a percentage was stated anywhere in the document?
+□ Distributed weights calculated correctly when an aggregate is given?
+□ ALL lectures/seminars included with their topics, not just assessments?
+□ EVERY event has a non-empty source_quote copied verbatim from the document?
+
+If any answer is NO, add the missing events before outputting.
+If the document contains no extractable events, return { "events": [] }.`;
 
   try {
     const msg = await aiClient.messages.create({
       model:      "claude-sonnet-4-6",
-      max_tokens: 4096,
+      // 8 192 tokens — a full semester (60+ lectures + assessments + floating items)
+      // serialises to ~6 000–7 000 tokens. 4 096 would truncate mid-JSON.
+      max_tokens: 8192,
       system:     systemPrompt,
-      messages:   [{ role: "user", content: `Extract all time-bound items from this document:\n\n${snippet}` }],
+      messages: [{
+        role:    "user",
+        content: `Extract every scheduled event, assessment, floating grade item, and bonus opportunity from this syllabus. Apply all six extraction rules. Do not truncate — process the document from the first week to the final exam.\n\n${snippet}`,
+      }],
     });
 
     const raw     = msg.content?.[0]?.text?.trim() ?? "";
@@ -158,7 +258,12 @@ EXTRACTION RULES — be thorough, miss nothing:
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
 
-    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    // Accept both "events" (current schema) and "items" (legacy fallback)
+    const items = Array.isArray(parsed.events)
+      ? parsed.events
+      : Array.isArray(parsed.items)
+        ? parsed.items
+        : [];
     const VALID_TYPES = new Set(["assignment", "exam", "lecture", "reminder", "other"]);
     const result = [];
 
@@ -170,11 +275,16 @@ EXTRACTION RULES — be thorough, miss nothing:
       const rawType = String(item.type ?? "other").toLowerCase().trim();
       const type = VALID_TYPES.has(rawType) ? rawType : "other";
 
+      const w = typeof item.weight === "number" && isFinite(item.weight) ? item.weight : 0;
       result.push({
-        title:       String(item.title).slice(0, 200),
-        date:        d,
+        title:        String(item.title).slice(0, 200),
+        date:         d,
         type,
-        description: item.weight ? `Weight: ${item.weight}%` : "",
+        weight:       w,
+        description:  w > 0 ? `Weight: ${w}%` : "",
+        source_quote: typeof item.source_quote === "string"
+          ? item.source_quote.trim().slice(0, 300)
+          : "",
       });
     }
 
@@ -326,6 +436,9 @@ export async function uploadResource(req, res) {
       uploadedAt: saved.uploadedAt,
       chunksIndexed,
     },
+    // The same 40 k slice sent to the LLM — source_quotes are guaranteed
+    // to be findable inside this string for the document highlight viewer.
+    rawText: text.slice(0, 40_000),
     pendingExtractions,
   });
 }

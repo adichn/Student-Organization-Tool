@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import GlassCard              from "./GlassCard";
-import FileUploader           from "./FileUploader";
-import ExtractionReviewModal  from "./ExtractionReviewModal";
-import Button                 from "./ui/Button";
+import GlassCard           from "./GlassCard";
+import FileUploader        from "./FileUploader";
+import VerificationModal   from "./VerificationModal";
+import Button              from "./ui/Button";
 import { useDeleteResource }  from "../hooks/useResources";
 
 // ── Session-storage key ───────────────────────────────────────────────────────
@@ -538,6 +538,7 @@ export default function ResourceManager({ course, className = "" }) {
   const [searchQuery,   setSearchQuery]   = useState("");
   const [showUploader,  setShowUploader]  = useState(false);
   const [pendingItems,  setPendingItems]  = useState(null);  // extraction items | null
+  const [rawText,       setRawText]       = useState("");    // syllabus text for document viewer
   const [reviewOpen,    setReviewOpen]    = useState(false); // controls modal visibility
 
   const { mutate: doDelete, isPending: isDeleting } = useDeleteResource();
@@ -547,9 +548,10 @@ export default function ResourceManager({ course, className = "" }) {
     try {
       const stored = sessionStorage.getItem(storageKey(courseId));
       if (stored) {
-        const { items } = JSON.parse(stored);
+        const { items, rawText: storedRawText } = JSON.parse(stored);
         if (Array.isArray(items) && items.length > 0) {
           setPendingItems(items);
+          setRawText(storedRawText ?? "");
           setReviewOpen(true);
         }
       }
@@ -586,10 +588,12 @@ export default function ResourceManager({ course, className = "" }) {
   function handleUploaded(data) {
     setShowUploader(false);
     if (data?.pendingExtractions?.length) {
-      const items = data.pendingExtractions;
+      const items       = data.pendingExtractions;
+      const documentText = data.rawText ?? "";
       // Persist so a page refresh restores the review gate
-      sessionStorage.setItem(storageKey(courseId), JSON.stringify({ items }));
+      sessionStorage.setItem(storageKey(courseId), JSON.stringify({ items, rawText: documentText }));
       setPendingItems(items);
+      setRawText(documentText);
       setReviewOpen(true);
     }
   }
@@ -597,6 +601,7 @@ export default function ResourceManager({ course, className = "" }) {
   function clearPendingState() {
     sessionStorage.removeItem(storageKey(courseId));
     setPendingItems(null);
+    setRawText("");
     setReviewOpen(false);
   }
 
@@ -691,9 +696,10 @@ export default function ResourceManager({ course, className = "" }) {
       )}
 
       {/* Human-in-the-loop extraction review modal */}
-      <ExtractionReviewModal
+      <VerificationModal
         isOpen={reviewOpen}
         items={pendingItems ?? []}
+        rawText={rawText}
         courseId={courseId}
         onSaved={clearPendingState}
         onDiscard={clearPendingState}

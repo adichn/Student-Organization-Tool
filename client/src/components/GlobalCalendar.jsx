@@ -335,10 +335,12 @@ export default function GlobalCalendar({ courses = [], semester }) {
     }))
   );
 
-  // Index by "Y-M-D" local time
+  // Index by "Y-M-D" UTC — dates are stored as UTC midnight in MongoDB.
+  // Using UTC accessors ensures an event saved for "March 15" always lands on
+  // March 15 in the grid, regardless of the user's local timezone offset.
   const eventsByDate = {};
   for (const ev of allEvents) {
-    const key = `${ev.date.getFullYear()}-${ev.date.getMonth()}-${ev.date.getDate()}`;
+    const key = `${ev.date.getUTCFullYear()}-${ev.date.getUTCMonth()}-${ev.date.getUTCDate()}`;
     (eventsByDate[key] ??= []).push(ev);
   }
   function eventsForDay(y, m, d) {
